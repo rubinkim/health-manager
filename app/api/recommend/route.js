@@ -39,7 +39,7 @@ export async function POST(request) {
 운동 추천을 작성하세요.`;
 
     // Gemini API 호출
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-review" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent(prompt);
     const recommendation = result.response.text();
 
@@ -50,9 +50,9 @@ export async function POST(request) {
   } catch (error) {
     console.error("AI 추천 생성 오류:", error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: "운동 추천 생성 중 오류가 발생했습니다",
-        recommendation: "오늘은 가볍게 산책 30분을 권장합니다." 
+        recommendation: "오늘은 가볍게 산책 30분을 권장합니다."
       }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
