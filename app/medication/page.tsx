@@ -41,12 +41,34 @@ export default function MedicationPage() {
       const { data, error } = await supabase
         .from('medication_schedule')
         .select('*')
-        .eq('user_id', USER_ID);
+        .eq('user_id', USER_ID)
+        .eq('active', true);
 
       if (error) throw error;
       setSchedules(data || []);
     } catch (err) {
       console.error('일정 조회 실패:', err);
+    }
+  };
+
+  const handleDeactivate = async (scheduleId: string, medicineName: string) => {
+    if (!confirm(`'${medicineName}' 복용을 중단하시겠습니까?\n(과거 복용 기록은 그대로 보관됩니다)`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('medication_schedule')
+        .update({ active: false })
+        .eq('id', scheduleId);
+
+      if (error) throw error;
+
+      setSchedules(prev => prev.filter(s => s.id !== scheduleId));
+      setMessage('✅ 복용을 중단했습니다');
+    } catch (err) {
+      console.error('복용 중단 실패:', err);
+      setMessage('❌ 복용 중단 처리에 실패했습니다');
     }
   };
 
@@ -264,6 +286,12 @@ export default function MedicationPage() {
                   <p className="font-medium">{schedule.medicine_name}</p>
                   <p className="text-sm text-gray-600">⏰ {schedule.time}</p>
                 </div>
+                <button
+                  onClick={() => handleDeactivate(schedule.id, schedule.medicine_name)}
+                  className="text-sm text-red-600 border border-red-300 rounded px-3 py-1.5 hover:bg-red-50 transition-colors"
+                >
+                  복용 중단
+                </button>
               </li>
             ))}
           </ul>

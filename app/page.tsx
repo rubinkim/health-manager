@@ -18,6 +18,23 @@ interface MedicationSchedule {
   time: string;
 }
 
+interface MedicationLog {
+  medication_id: string;
+  time: string | null;
+  taken: boolean;
+}
+
+interface MedicationStatusItem {
+  name: string;
+  time: string;
+}
+
+interface MedicationStatus {
+  taken: MedicationStatusItem[];
+  overdue: MedicationStatusItem[];
+  upcoming: MedicationStatusItem[];
+}
+
 export default function Home() {
   const [todayHealth, setTodayHealth] = useState<HealthLog | null>(null);
   const [schedules, setSchedules] = useState<MedicationSchedule[]>([]);
@@ -54,9 +71,37 @@ export default function Home() {
       const { data: medData } = await supabase
         .from('medication_schedule')
         .select('*')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .eq('active', true);
 
       setSchedules(medData || []);
+
+      // 2-1. 오늘의 복약 기록 조회 → 복용완료/미복용(시각경과)/예정 3개 리스트로 가공
+      const { data: medLogData } = await supabase
+        .from('medication_log')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', today);
+
+      const logByMedId: Record<string, MedicationLog> = {};
+      (medLogData || []).forEach((log: MedicationLog) => {
+        logByMedId[log.medication_id] = log;
+      });
+
+      const nowHM = new Date().toTimeString().slice(0, 5);
+      const medicationStatus: MedicationStatus = { taken: [], overdue: [], upcoming: [] };
+
+      (medData || []).forEach((s: MedicationSchedule) => {
+        const log = logByMedId[s.id];
+        const scheduledHM = s.time.slice(0, 5);
+        if (log?.taken) {
+          medicationStatus.taken.push({ name: s.medicine_name, time: (log.time || s.time).slice(0, 5) });
+        } else if (scheduledHM <= nowHM) {
+          medicationStatus.overdue.push({ name: s.medicine_name, time: scheduledHM });
+        } else {
+          medicationStatus.upcoming.push({ name: s.medicine_name, time: scheduledHM });
+        }
+      });
 
       // 3. 날씨 정보 조회 (Open-Meteo)
       const weatherResponse = await fetch(
@@ -70,19 +115,18 @@ export default function Home() {
       };
       setWeather(currentWeather);
 
-      // 4. AI 운동 추천 호출
-      if (healthData) {
-        const recommendResponse = await fetch('/api/recommend', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            health: healthData,
-            weather: currentWeather
-          })
-        });
-        const recommendData = await recommendResponse.json();
-        setRecommendation(recommendData.recommendation || '운동 추천 생성 중 오류가 발생했습니다');
-      }
+      // 4. AI 추천 호출 (건강 수치 유무와 상관없이 항상 호출)
+      const recommendResponse = await fetch('/api/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          health: healthData || null,
+          weather: currentWeather,
+          medication: medicationStatus
+        })
+      });
+      const recommendData = await recommendResponse.json();
+      setRecommendation(recommendData.recommendation || '추천 생성 중 오류가 발생했습니다');
     } catch (err) {
       console.error('데이터 조회 실패:', err);
       setError('데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
@@ -140,9 +184,9 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* 카드 3: 운동 추천 */}
+        {/* 카드 3: AI 맞춤 안내 (운동 추천 + 복약 안내) */}
         <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-bold mb-4">🏃 오늘의 운동 추천</h2>
+          <h2 className="text-xl font-bold mb-4">💬 오늘의 AI 맞춤 안내</h2>
           {loading ? (
             <p className="text-gray-600">로딩 중...</p>
           ) : recommendation ? (
@@ -155,7 +199,7 @@ export default function Home() {
               )}
             </div>
           ) : (
-            <p className="text-gray-600">건강 수치를 입력하면 AI가 맞춤형 운동을 추천합니다</p>
+            <p className="text-gray-600">건강 수치나 복약 정보를 입력하면 AI가 맞춤 안내를 드립니다</p>
           )}
         </div>
       </div>
