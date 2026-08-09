@@ -9,8 +9,19 @@ interface MedicationSchedule {
   time: string;
 }
 
+interface MedicationLog {
+  id: string;
+  medication_id: string;
+  date: string;
+  time: string | null;
+  taken: boolean;
+}
+
+const USER_ID = '550e8400-e29b-41d4-a716-446655440001';
+
 export default function MedicationPage() {
   const [schedules, setSchedules] = useState<MedicationSchedule[]>([]);
+  const [todayLogs, setTodayLogs] = useState<Record<string, MedicationLog>>({});
   const [formData, setFormData] = useState({
     medicineName: '',
     time: '',
@@ -18,8 +29,11 @@ export default function MedicationPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  const today = new Date().toISOString().split('T')[0];
+
   useEffect(() => {
     loadSchedules();
+    loadTodayLogs();
   }, []);
 
   const loadSchedules = async () => {
@@ -27,12 +41,73 @@ export default function MedicationPage() {
       const { data, error } = await supabase
         .from('medication_schedule')
         .select('*')
-        .eq('user_id', '550e8400-e29b-41d4-a716-446655440001');
+        .eq('user_id', USER_ID);
 
       if (error) throw error;
       setSchedules(data || []);
     } catch (err) {
       console.error('일정 조회 실패:', err);
+    }
+  };
+
+  const loadTodayLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('medication_log')
+        .select('*')
+        .eq('user_id', USER_ID)
+        .eq('date', today);
+
+      if (error) throw error;
+
+      const map: Record<string, MedicationLog> = {};
+      (data || []).forEach((log: MedicationLog) => {
+        map[log.medication_id] = log;
+      });
+      setTodayLogs(map);
+    } catch (err) {
+      console.error('오늘 복약 기록 조회 실패:', err);
+    }
+  };
+
+  const handleToggleTaken = async (scheduleId: string) => {
+    const existing = todayLogs[scheduleId];
+
+    try {
+      if (existing?.taken) {
+        // 미복용으로 되돌리기: 기록 자체를 삭제 (기록 없음 = 미복용)
+        const { error } = await supabase
+          .from('medication_log')
+          .delete()
+          .eq('id', existing.id);
+
+        if (error) throw error;
+        setTodayLogs(prev => {
+          const next = { ...prev };
+          delete next[scheduleId];
+          return next;
+        });
+      } else {
+        // 복용함으로 체크: 현재 시각으로 기록
+        const nextTime = new Date().toLocaleTimeString('en-GB', { hour12: false });
+        const { data, error } = await supabase
+          .from('medication_log')
+          .insert([{
+            user_id: USER_ID,
+            medication_id: scheduleId,
+            date: today,
+            taken: true,
+            time: nextTime,
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        setTodayLogs(prev => ({ ...prev, [scheduleId]: data }));
+      }
+    } catch (err) {
+      console.error('복약 체크 실패:', err);
+      setMessage('❌ 복약 체크에 실패했습니다');
     }
   };
 
@@ -129,6 +204,49 @@ export default function MedicationPage() {
           }`}>
             {message}
           </div>
+        )}
+      </div>
+
+      {/* 오늘의 복약 체크리스트 */}
+      <div className="bg-white p-4 md:p-6 rounded shadow mb-6">
+        <h2 className="text-lg font-bold mb-4">✅ 오늘의 복약 체크리스트 ({today})</h2>
+
+        {schedules.length === 0 ? (
+          <p className="text-gray-600">등록된 복약 일정이 없습니다</p>
+        ) : (
+          <ul className="space-y-3">
+            {schedules.map(schedule => {
+              const log = todayLogs[schedule.id];
+              const taken = log?.taken ?? false;
+              return (
+                <li
+                  key={schedule.id}
+                  className={`flex items-center gap-3 border-l-4 pl-4 py-2 md:py-3 ${
+                    taken ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={taken}
+                    onChange={() => handleToggleTaken(schedule.id)}
+                    className="w-5 h-5 accent-green-600"
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium">{schedule.medicine_name}</p>
+                    <p className="text-sm text-gray-600">
+                      ⏰ 예정 시각: {schedule.time}
+                      {taken && log?.time && (
+                        <span className="text-green-700"> · 복용 시각: {log.time.slice(0, 5)}</span>
+                      )}
+                    </p>
+                  </div>
+                  <span className={`text-sm font-medium ${taken ? 'text-green-700' : 'text-gray-400'}`}>
+                    {taken ? '복용함' : '미복용'}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
 
