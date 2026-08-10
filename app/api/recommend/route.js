@@ -86,7 +86,7 @@ export async function POST(request) {
     const prompt = buildPrompt({ health, weather, medication });
 
     // Gemini API 호출
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
     const result = await model.generateContent(prompt);
     const recommendation = result.response.text();
 
