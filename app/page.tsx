@@ -92,7 +92,7 @@ async function fetchTodayStatus() {
 
 export default function Home() {
   const [todayHealth, setTodayHealth] = useState<HealthLog | null>(null);
-  const [schedules, setSchedules] = useState<MedicationSchedule[]>([]);
+  const [takenToday, setTakenToday] = useState<MedicationStatusItem[]>([]);
   const [recommendation, setRecommendation] = useState<string>('');
   const [recommending, setRecommending] = useState(false);
   const [weather, setWeather] = useState<any>(null);
@@ -105,9 +105,9 @@ export default function Home() {
   const loadDashboardData = async () => {
     setError('');
     try {
-      const { healthData, schedules: scheduleList } = await fetchTodayStatus();
+      const { healthData, medicationStatus } = await fetchTodayStatus();
       setTodayHealth(healthData);
-      setSchedules(scheduleList);
+      setTakenToday(medicationStatus.taken);
     } catch (err) {
       console.error('데이터 조회 실패:', err);
       setError('데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
@@ -119,6 +119,7 @@ export default function Home() {
     setError('');
     try {
       const { healthData, medicationStatus } = await fetchTodayStatus();
+      setTakenToday(medicationStatus.taken);
 
       const weatherResponse = await fetch(
         'https://api.open-meteo.com/v1/forecast?latitude=37.3858512&longitude=127.1093695&current=temperature_2m,precipitation,weather_code&timezone=Asia/Seoul'
@@ -179,17 +180,17 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* 카드 2: 복약 일정 */}
+        {/* 카드 2: 오늘의 복약 기록 (체크한 만큼만 채워짐, 매일 초기화) */}
         <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-bold mb-4">💊 복약 일정</h2>
-          {schedules.length === 0 ? (
-            <p className="text-gray-600">복약 일정을 설정해주세요</p>
+          <h2 className="text-xl font-bold mb-4">💊 오늘의 복약 기록</h2>
+          {takenToday.length === 0 ? (
+            <p className="text-gray-600">아직 오늘 복용 기록이 없습니다</p>
           ) : (
             <ul className="space-y-2 text-sm">
-              {schedules.map(schedule => (
-                <li key={schedule.id} className="border-l-4 border-blue-500 pl-2 py-1">
-                  <p className="font-medium">{schedule.medicine_name}</p>
-                  <p className="text-gray-600">⏰ {schedule.time}</p>
+              {takenToday.map((item, idx) => (
+                <li key={`${item.name}-${idx}`} className="border-l-4 border-green-500 pl-2 py-1">
+                  <p className="font-medium">{item.name}</p>
+                  <p className="text-gray-600">✅ {item.time} 복용</p>
                 </li>
               ))}
             </ul>
