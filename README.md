@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 시니어 건강 관리 웹 서비스
 
-## Getting Started
+고혈압·당뇨 같은 만성질환을 관리하는 시니어가 매일 건강 수치와 복약 여부를 입력하면, AI가 오늘의 날씨·건강 상태·복약 현황을 종합해 운동과 복약을 함께 챙기도록 안내해주는 웹 서비스입니다.
 
-First, run the development server:
+**배포 주소**: https://health-manager-chi.vercel.app/
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 문제 상황
+
+고령층 사용자가 종이에 손으로 기록하던 건강 수치와 약 복용을 관리하는 방식에는 다음과 같은 문제가 있습니다.
+
+- **데이터 분산**: 종이, 달력, 노트 여러 곳에 흩어져 있음
+- **추세 파악 불가**: 언제부터 혈압/혈당이 나빠졌는지 알기 어려움
+- **복약 누락**: 약을 먹었는지 안 먹었는지 확인할 방법이 없음
+
+## 해결 방법
+
+매일 아침 건강 수치를 입력하면 자동으로 저장되고, 추세를 그래프로 볼 수 있으며, AI가 그 순간의 건강 상태·날씨·복약 현황을 종합해 운동과 복약을 안내합니다.
+
+```
+사용자(고령층) ──▶ Next.js(대시보드 / 입력 / 기록 / 복약 관리)
+                       │              │
+                       ▼              ▼
+                  Supabase        Gemini API (버튼 클릭 시 호출)
+                (건강 수치 · 복약 이력)   + Open-Meteo(날씨)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 기술 스택
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **프레임워크**: Next.js 16 + React 19 + TypeScript
+- **배포**: Vercel
+- **데이터베이스**: Supabase (PostgreSQL)
+- **AI**: Google Gemini API (`gemini-2.5-flash`)
+- **차트**: Recharts
+- **날씨**: Open-Meteo API
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 핵심 설계 포인트
 
-## Learn More
+- **AI 호출은 버튼 클릭 시에만** — 대시보드 진입 시 자동 호출하지 않아 불필요한 API 비용을 막고, 사용자가 원할 때만 안내를 받도록 함
+- **복약 시각 경과 여부는 코드에서 미리 계산해 LLM에 전달** — LLM이 직접 "지금이 몇 시니 복용 시각이 지났다"를 판단하게 하면 시간 계산 오류가 생길 수 있어, 판단은 서버에서 하고 LLM은 안내 문장 생성만 담당
+- **약 중단은 소프트 삭제** — `medication_schedule.active` 플래그만 끄고 행을 지우지 않아, 과거에 어떤 약을 언제까지 먹었는지 이력이 항상 보존됨
+- **AI 실패 시 화면이 깨지지 않도록 폴백 처리** — API 호출 실패 시 기본 안내 문구로 대체
+- **의료 기록 특성상 삭제 없음** — 입력은 Frontend/Backend 이중 검증, 저장은 항상 수행
 
-To learn more about Next.js, take a look at the following resources:
+## 데이터 모델
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| 테이블 | 역할 |
+|---|---|
+| `health_log` | 일별 건강 수치 (혈압/심박수/혈당/체온) |
+| `medication_schedule` | 등록한 약의 반복 일정 (소프트 삭제로 이력 보존) |
+| `medication_log` | 그날그날 실제 복용 여부·시각 |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 주요 기능
 
-## Deploy on Vercel
+1. 건강 수치 기록 + 추세 그래프 (7일/30일/1년 필터)
+2. 복약 일정 등록 및 매일의 복용 체크
+3. "AI에게 추천받기" — 오늘의 건강 수치·날씨·복약 현황을 종합해 운동 추천 + 미복용 약 알림을 한 번에 생성
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 시행착오
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Gemini 모델명 오류**: 코드에 존재하지 않는 모델명(`gemini-3-flash-review`)과 이후 폐기(retired)된 `gemini-1.5` 계열을 거쳐, `ListModels`로 실제 사용 가능한 모델을 확인한 뒤 `gemini-2.5-flash`로 교체
+- **타임존 문제**: 한국(UTC+9)에서 입력한 데이터가 UTC로 저장되어 다음날로 표시되던 문제 → 로컬 날짜만 추출해 저장하도록 수정
+- **그래프 로딩 지연**: 매번 Supabase에서 fetch하던 방식을 데이터를 한 번만 로드해 메모리에 캐시하는 방식으로 바꿔 필터 반응 속도 개선
+
+## 로컬 실행
+
+```bash
+npm install
+npm run dev
+```
+
+[http://localhost:3000](http://localhost:3000)에서 확인할 수 있습니다. `.env.local`에 Supabase, Gemini API 키 설정이 필요합니다.
