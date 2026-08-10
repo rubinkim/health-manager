@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getTodayKST } from '@/lib/date';
 
 export default function HealthPage() {
   const [formData, setFormData] = useState({
@@ -74,7 +75,7 @@ export default function HealthPage() {
         .insert([
           {
             user_id: '550e8400-e29b-41d4-a716-446655440001',
-            date: new Date().toISOString().split('T')[0],
+            date: getTodayKST(),
             temperature: temp,
             systolic_bp: systolic,
             diastolic_bp: diastolic,

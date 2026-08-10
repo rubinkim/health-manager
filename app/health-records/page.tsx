@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getDateBeforeKST, getYearBeforeKST } from '@/lib/date';
 import Link from 'next/link';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -36,18 +37,16 @@ export default function HealthRecords() {
     setError('');
     try {
       const userId = '550e8400-e29b-41d4-a716-446655440001';
-      const today = new Date();
-      const startDate = new Date(today);
-
-      if (range === '7') startDate.setDate(today.getDate() - 7);
-      else if (range === '30') startDate.setDate(today.getDate() - 30);
-      else if (range === '365') startDate.setFullYear(today.getFullYear() - 1);
+      let startDateStr: string;
+      if (range === '7') startDateStr = getDateBeforeKST(7);
+      else if (range === '30') startDateStr = getDateBeforeKST(30);
+      else startDateStr = getYearBeforeKST(1);
 
       const { data: healthData } = await supabase
         .from('health_log')
         .select('*')
         .eq('user_id', userId)
-        .gte('date', startDate.toISOString().split('T')[0])
+        .gte('date', startDateStr)
         .order('date', { ascending: true });
 
       setData(healthData || []);

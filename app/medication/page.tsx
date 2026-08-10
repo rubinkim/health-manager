@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getTodayKST, getNowTimeKST } from '@/lib/date';
 
 interface MedicationSchedule {
   id: string;
@@ -29,7 +30,7 @@ export default function MedicationPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayKST();
 
   useEffect(() => {
     loadSchedules();
@@ -111,7 +112,7 @@ export default function MedicationPage() {
         });
       } else {
         // 복용함으로 체크: 현재 시각으로 기록
-        const nextTime = new Date().toLocaleTimeString('en-GB', { hour12: false });
+        const nextTime = getNowTimeKST();
         const { data, error } = await supabase
           .from('medication_log')
           .insert([{

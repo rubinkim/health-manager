@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getTodayKST, getNowHM_KST } from '@/lib/date';
 import Link from 'next/link';
 
 interface HealthLog {
@@ -39,7 +40,7 @@ const USER_ID = '550e8400-e29b-41d4-a716-446655440001';
 
 // 오늘의 건강 수치 / 복약 스케줄 / 복약 현황(복용완료·미복용-시각경과·예정)을 최신 상태로 조회
 async function fetchTodayStatus() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayKST();
 
   const { data: healthData } = await supabase
     .from('health_log')
@@ -67,7 +68,7 @@ async function fetchTodayStatus() {
     logByMedId[log.medication_id] = log;
   });
 
-  const nowHM = new Date().toTimeString().slice(0, 5);
+  const nowHM = getNowHM_KST();
   const medicationStatus: MedicationStatus = { taken: [], overdue: [], upcoming: [] };
 
   (medData || []).forEach((s: MedicationSchedule) => {
